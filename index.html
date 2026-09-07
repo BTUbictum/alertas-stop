@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alertas Stop · Ubictum · v1</title>
+<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+<style>
+  :root{
+    --ubi-blue:#54a4b3;
+    --ubi-blue-dark:#000000;
+    --ubi-blue-light:rgba(84,164,179,.12);
+    --ubi-gray:#636469;
+    --ubi-ink:#000000;
+    --ubi-bg:#f2f6f6;
+    --ubi-white:#ffffff;
+    --ubi-border:#dbe6e6;
+    --ubi-danger:#b3463c;
+    --ubi-danger-bg:#fbeae8;
+    --ubi-success:#3f8f6f;
+    --ubi-success-bg:#eaf5f0;
+    --ubi-warn:#b3893c;
+    --ubi-warn-bg:#fbf2e0;
+    --radius:10px;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--ubi-bg);
+    color:var(--ubi-ink);
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    background:linear-gradient(135deg,#000000 0%,var(--ubi-gray) 55%,var(--ubi-blue) 100%);
+    color:#fff;
+    padding:22px 28px;
+  }
+  .topbar-inner{
+    max-width:1180px;margin:0 auto;display:flex;align-items:center;
+    justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;cursor:pointer;}
+  .brand-mark{
+    cursor:pointer;width:38px;height:38px;border-radius:9px;background:var(--ubi-blue);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;
+    letter-spacing:.5px;box-shadow:0 4px 14px rgba(84,164,179,.45);
+  }
+  .brand-mark:hover{opacity:.85;}
+  .brand-text h1{margin:0;font-size:22px;font-weight:800;letter-spacing:1px;}
+  .brand-text .slogan-inline{margin:2px 0 0;font-size:10.5px;color:#cfe4e6;letter-spacing:1.5px;text-transform:uppercase;}
+  .conn-badge{font-size:11.5px;color:#a8e0c4;display:flex;align-items:center;gap:5px;}
+  .conn-badge.err{color:#f0b0a8;}
+  .conn-badge::before{content:"●";font-size:9px;}
+
+  .page-title{margin-bottom:18px;display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  .page-title h2{margin:0;font-size:20px;font-weight:800;color:var(--ubi-ink);}
+  .page-title p{margin:4px 0 0;font-size:13px;color:var(--ubi-gray);}
+  .version-tag{font-size:11px;color:var(--ubi-gray);background:#e3edec;padding:4px 10px;border-radius:999px;font-family:var(--mono);}
+
+  .userbox{display:flex;align-items:center;gap:12px;font-size:12.5px;color:#cfe4e6;}
+  .userbox .chip{background:rgba(255,255,255,.1);padding:6px 12px;border-radius:999px;}
+  .userbox .role-chip{background:rgba(255,255,255,.18);padding:5px 10px;border-radius:999px;font-weight:700;}
+  .userbox button{
+    background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
+    padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;
+  }
+  .userbox button:hover{background:rgba(255,255,255,.12);}
+
+  /* ---------- Auth gate ---------- */
+  .gate{
+    min-height:70vh;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    gap:16px;padding:40px 20px;text-align:center;
+  }
+  .gate h2{margin:0;font-size:20px;}
+  .gate p{margin:0;color:var(--ubi-gray);font-size:13.5px;max-width:380px;}
+  .gate-btn{
+    background:var(--ubi-blue);color:#fff;border:none;padding:13px 26px;border-radius:9px;
+    font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;
+  }
+  .gate-btn:hover{background:var(--ubi-blue-dark);}
+  .gate-err{color:var(--ubi-danger);font-size:12.5px;max-width:420px;}
+
+  /* ---------- Layout ---------- */
+  .page{max-width:900px;margin:0 auto;padding:26px 28px 80px;display:none;}
+  .tabs{display:flex;gap:6px;margin-bottom:20px;background:#e3edec;padding:5px;border-radius:12px;width:fit-content;}
+  .tab-btn{
+    border:none;background:transparent;padding:9px 18px;border-radius:9px;
+    font-size:13.5px;font-weight:600;color:var(--ubi-gray);cursor:pointer;transition:all .15s ease;
+  }
+  .tab-btn.active{background:var(--ubi-white);color:var(--ubi-ink);box-shadow:0 1px 4px rgba(0,0,0,.08);}
+
+  .card{
+    background:var(--ubi-white);border:1px solid var(--ubi-border);border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:18px;
+  }
+  .card h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--ubi-blue-dark);margin:0 0 4px;font-weight:800;}
+  .card .sub{font-size:12.5px;color:var(--ubi-gray);margin:0 0 18px;}
+  .card.locked{opacity:.6;}
+  .card .lock-note{font-size:11.5px;color:var(--ubi-warn);background:var(--ubi-warn-bg);padding:8px 12px;border-radius:8px;margin-bottom:14px;}
+
+  .field{margin-bottom:18px;}
+  .field:last-child{margin-bottom:0;}
+  label{display:block;font-size:13.5px;font-weight:600;margin-bottom:6px;color:var(--ubi-ink);}
+  label .req{color:var(--ubi-danger);margin-left:2px;}
+  label .opt{font-weight:400;color:var(--ubi-gray);font-size:11.5px;margin-left:6px;}
+  .hint{font-size:11.5px;color:var(--ubi-gray);margin:4px 0 0;}
+
+  input[type=text],input[type=number],input[type=datetime-local],select,textarea{
+    width:100%;border:1.5px solid var(--ubi-border);border-radius:8px;
+    padding:10px 12px;font-size:14px;font-family:inherit;color:var(--ubi-ink);
+    background:var(--ubi-white);transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--ubi-blue);box-shadow:0 0 0 3px rgba(84,164,179,.18);
+  }
+  textarea{resize:vertical;min-height:64px;}
+  select:disabled,input:disabled,textarea:disabled{background:#f3f5f5;color:#a9adad;cursor:not-allowed;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:560px){.row2{grid-template-columns:1fr;}}
+
+  .field.invalid input,.field.invalid select,.field.invalid textarea{
+    border-color:var(--ubi-danger);background:var(--ubi-danger-bg);
+  }
+  .err-msg{display:none;font-size:11.5px;color:var(--ubi-danger);margin-top:4px;font-weight:600;}
+  .field.invalid .err-msg{display:block;}
+
+  .file-drop{
+    border:1.5px dashed var(--ubi-border);border-radius:8px;padding:18px;
+    text-align:center;cursor:pointer;background:#fafcfc;transition:all .15s ease;
+  }
+  .file-drop:hover{border-color:var(--ubi-blue);background:var(--ubi-blue-light);}
+  .file-drop input{display:none;}
+  .file-list{margin-top:8px;font-size:12.5px;color:var(--ubi-gray);}
+  .file-list span{display:block;padding:3px 0;}
+
+  .btn{
+    border:none;border-radius:8px;padding:12px 22px;font-size:14px;font-weight:700;
+    cursor:pointer;transition:all .15s ease;
+  }
+  .btn[disabled]{opacity:.55;cursor:not-allowed;}
+  .btn-primary{background:var(--ubi-blue);color:#fff;}
+  .btn-primary:hover{background:var(--ubi-blue-dark);}
+  .btn-ghost{background:transparent;color:var(--ubi-gray);border:1.5px solid var(--ubi-border);}
+  .btn-ghost:hover{border-color:var(--ubi-blue);color:var(--ubi-blue-dark);}
+  .actions{display:flex;gap:10px;margin-top:6px;align-items:center;flex-wrap:wrap;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ubi-ink);color:#fff;padding:14px 22px;border-radius:9px;
+    font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;
+    transition:all .25s ease;pointer-events:none;max-width:90%;text-align:center;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.success{background:var(--ubi-success);}
+  .toast.error{background:var(--ubi-danger);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  /* ---------- Firma ---------- */
+  .sig-wrap{border:1.5px solid var(--ubi-border);border-radius:8px;background:#fafcfc;overflow:hidden;}
+  .sig-wrap canvas{display:block;width:100%;height:180px;touch-action:none;cursor:crosshair;background:#fff;}
+  .sig-actions{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#eef4f4;}
+  .sig-actions span{font-size:11px;color:var(--ubi-gray);}
+  .sig-actions button{
+    background:transparent;border:1px solid var(--ubi-border);border-radius:6px;
+    padding:4px 10px;font-size:11.5px;cursor:pointer;color:var(--ubi-blue-dark);
+  }
+  .sig-actions button:hover{border-color:var(--ubi-blue);}
+  .sig-preview{border:1.5px solid var(--ubi-border);border-radius:8px;background:#fff;padding:8px;text-align:center;}
+  .sig-preview img{max-width:100%;max-height:150px;}
+  .sig-preview .sig-caption{font-size:11.5px;color:var(--ubi-gray);margin-top:6px;}
+
+  /* ---------- Estatus pill ---------- */
+  .estatus-pill{
+    display:inline-block;padding:5px 14px;border-radius:999px;font-size:12px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .estatus-pill.creado{background:#e3edf5;color:#33587a;}
+  .estatus-pill.proceso{background:var(--ubi-warn-bg);color:var(--ubi-warn);}
+  .estatus-pill.completado{background:var(--ubi-success-bg);color:var(--ubi-success);}
+
+  /* ---------- Consulta ---------- */
+  .search-box{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .search-box .field{flex:1;min-width:220px;margin-bottom:0;}
+  .record-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+  .record-header .rid{font-family:var(--mono);font-size:13px;color:var(--ubi-gray);}
+  .readonly-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--ubi-border);font-size:13.5px;gap:12px;}
+  .readonly-row:last-child{border-bottom:none;}
+  .readonly-row .k{color:var(--ubi-gray);}
+  .readonly-row .v{text-align:right;font-weight:600;overflow-wrap:anywhere;}
+  .empty-hint{text-align:center;color:var(--ubi-gray);font-size:13px;padding:30px 10px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" onclick="window.location.href='https://btubictum.github.io/U-Home/'" title="Regresar a U-Home">
+      <div class="brand-mark">U</div>
+      <div class="brand-text">
+        <h1>UBICTUM</h1>
+        <p class="slogan-inline">LA PUERTA DE ENTRADA AL MERCADO</p>
+      </div>
+    </div>
+    <div class="userbox" id="userbox" style="display:none;">
+      <span class="conn-badge" id="connBadge"></span>
+      <span class="role-chip" id="roleChip"></span>
+      <span class="chip" id="userChip"></span>
+      <button onclick="signOut()">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= AUTH GATE ======================= -->
+<div class="gate" id="authGate">
+  <h2>Acceso restringido a Ubictum</h2>
+  <p>Inicia sesión con tu cuenta del tenant de Ubictum para reportar o atender una Alerta Stop.</p>
+  <button class="gate-btn" onclick="signIn()">Iniciar sesión</button>
+  <div class="gate-err" id="gateErr"></div>
+</div>
+
+<div class="page" id="appContent">
+
+  <div class="page-title">
+    <div>
+      <h2>Alertas Stop</h2>
+      <p>Reporte y atención de incidencias de seguridad/operación en almacén</p>
+    </div>
+    <span class="version-tag" id="versionTag">v1</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('nueva')">Reportar Alerta</button>
+    <button class="tab-btn" onclick="switchTab('consulta')">Consultar / Atender</button>
+  </div>
+
+  <!-- ======================= PANEL: NUEVA ALERTA (ENVIAR) ======================= -->
+  <div id="panel-nueva" class="panel active">
+    <form id="nuevaForm" novalidate>
+
+      <div class="card">
+        <h2>Clasificación</h2>
+        <p class="sub">Tipo de alerta y ubicación dentro del almacén.</p>
+
+        <div class="field" id="f-alerta">
+          <label>Alerta<span class="req">*</span></label>
+          <select id="alerta" required><option value="" disabled selected>Selecciona una alerta</option></select>
+          <div class="err-msg">Selecciona una alerta.</div>
+        </div>
+
+        <div class="row2">
+          <div class="field" id="f-cuenta">
+            <label>Cuenta<span class="req">*</span></label>
+            <select id="cuenta" required><option value="" disabled selected>Selecciona una cuenta</option></select>
+            <div class="err-msg">Selecciona una cuenta.</div>
+          </div>
+          <div class="field" id="f-turno">
+            <label>Turno<span class="req">*</span></label>
+            <select id="turno" required><option value="" disabled selected>Selecciona un turno</option></select>
+            <div class="err-msg">Selecciona un turno.</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field" id="f-proceso">
+            <label>Proceso<span class="req">*</span></label>
+            <select id="proceso" required><option value="" disabled selected>Selecciona un proceso</option></select>
+            <div class="err-msg">Selecciona un proceso.</div>
+          </div>
+          <div class="field" id="f-area">
+            <label>Área<span class="req">*</span></label>
+            <select id="area" required><option value="" disabled selected>Selecciona un área</option></select>
+            <div class="err-msg">Selecciona un área.</div>
+          </div>
+        </div>
+
+        <div class="field" id="f-pasillo">
+          <label>No. Pasillo / Puerta / Rampa / Zona<span class="req">*</span></label>
+          <input type="text" id="pasillo" placeholder="Ej. Pasillo 12" required>
+          <div class="err-msg">Indica la ubicación.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Detalle</h2>
+        <p class="sub">Describe lo observado y adjunta evidencia si aplica.</p>
+
+        <div class="field" id="f-comentario">
+          <label>Comentario<span class="req">*</span></label>
+          <textarea id="comentario" placeholder="Describe la alerta detectada" required></textarea>
+          <div class="err-msg">Describe la alerta detectada.</div>
+        </div>
+
+        <div class="field">
+          <label>Evidencias<span class="opt">(opcional)</span></label>
+          <label class="file-drop" for="evidencias">
+            <div>+ Agregar evidencia (foto o archivo)</div>
+            <input type="file" id="evidencias" multiple>
+          </label>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Quién reporta</h2>
+        <p class="sub">Firma de quien detecta y reporta la alerta dentro del almacén.</p>
+
+        <div class="field" id="f-nombreReporta">
+          <label>Nombre de quien reporta<span class="req">*</span></label>
+          <input type="text" id="nombreReporta" placeholder="Nombre completo" required>
+          <div class="err-msg">Indica el nombre de quien reporta.</div>
+        </div>
+
+        <div class="field" id="f-firmaReporta">
+          <label>Firma<span class="req">*</span></label>
+          <div class="sig-wrap">
+            <canvas id="sigReporta"></canvas>
+            <div class="sig-actions">
+              <span>Firma con el mouse o el dedo</span>
+              <button type="button" onclick="clearSignature('sigReporta')">Limpiar firma</button>
+            </div>
+          </div>
+          <div class="err-msg">Se requiere la firma de quien reporta.</div>
+        </div>
+
+        <div class="field">
+          <label>No. Empleado responsable<span class="opt">(opcional)</span></label>
+          <input type="number" id="noEmpleadoResponsable" placeholder="Número de empleado">
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="enviarBtn">Enviar</button>
+          <button type="button" class="btn btn-ghost" onclick="resetNuevaForm()">Limpiar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ======================= PANEL: CONSULTA / ATENCIÓN ======================= -->
+  <div id="panel-consulta" class="panel">
+    <div class="card">
+      <h2>Buscar alerta</h2>
+      <p class="sub">Escribe o selecciona el ID de la alerta a consultar.</p>
+      <div class="search-box">
+        <div class="field">
+          <label>ID de la alerta</label>
+          <input type="text" id="searchInput" list="idList" placeholder="Escribe o elige un ID..." autocomplete="off">
+          <datalist id="idList"></datalist>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="loadRecord()">Buscar</button>
+      </div>
+    </div>
+
+    <div id="recordArea"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+const CONFIG = {
+  tenantId: "5b149376-e794-49a0-a90d-7e8dab892910",
+  clientId: "92757b32-a5f8-4bb1-8497-7658e852c2de",
+  siteId:   "ubictum.sharepoint.com,bf06ed24-1f87-4ea1-a5e2-868339119f0a,5294d620-383a-47e8-ab19-19e9cdb993af",
+  listId:       "07352a38-f6e2-49c2-8124-feece33faec1", // AlertaStop
+  catCuentaId:  "8dc4849e-e792-4fbb-8964-664afc65f7c7", // AS-CatCuenta
+  catTurnoId:   "2cbcfd10-aa3b-4a75-bc41-95fe199f1c83", // AS-CatTurno
+  catProcesoId: "7bed44a9-3ce6-4ef2-8c36-d1038348eaa1", // AS-CatProceso
+  catAreaId:    "eb09dad0-79e5-488a-bdd1-ce3381188840", // AS-CatArea
+  catAlertaId:  "a2da2f31-0348-4a3c-828a-e5d1c6d1fa79", // AS-CatAlerta
+  attachmentsFolderPath: "AlertaStop",
+  groupColaboradores: "b3afdf14-7070-41c2-8221-862300f3ac03", // U-Colaboradores
+  groupAlertasStopMC: "e4999dfc-d13e-49b8-85ad-312d9dc4ba95"  // U-AlertasStopMC
+};
+
+const APP_VERSION = "v1";
+
+// Nombres internos reales de columna en la lista AlertaStop (confirmados vía Graph Explorer).
+// OJO: NoPasillo-Puerta-Rampa-Zona quedó codificado internamente por los guiones.
+const FIELD_MAP = {
+  Title: "Title",
+  TipoTarjeta: "TipoTarjeta",
+  TipoAlerta: "TipoAlerta",
+  Cuenta: "Cuenta",
+  Turno: "Turno",
+  Proceso: "Proceso",
+  Alerta: "Alerta",
+  Area: "Area",
+  NoPasillo: "NoPasillo_x002d_Puerta_x002d_Ram",
+  NoEmpleadoResponsable: "NoEmpleadoResponsable",
+  Comentario: "Comentario",
+  Evidencias: "Evidencias",
+  JefeResponsable: "JefeResponsable",
+  AccionCorrectiva: "AccionCorrectiva",
+  FechaAtencion: "FechaAtencion",
+  FirmaReporta: "FirmaReporta",
+  FirmaResponsable: "FirmaResponsable",
+  EstatusFirma: "EstatusFirma",
+  NombreReporta: "NombreReporta",
+  NombreResponsable: "NombreResponsable"
+};
+
+const GRAPH_SCOPES = ["Sites.ReadWrite.All", "Files.ReadWrite.All", "GroupMember.Read.All", "User.Read"];
+
+document.getElementById('versionTag').textContent = APP_VERSION;
+
+/* ============================================================
+   TIPO TARJETA / TIPO ALERTA — misma lógica que el calculado original
+   ============================================================ */
+function calcularTipoTarjeta(alerta){
+  if(!alerta) return "";
+  const verdes = ["Condición insegura", "Falta de señalización o aislamiento"];
+  return verdes.includes(alerta) ? "VERDE" : "ROJA";
+}
+function calcularTipoAlerta(alerta){
+  if(!alerta) return "";
+  const sheyma = ["Equipo de protección personal", "Acto inseguro", "Accidente", "Condición insegura", "Falta de señalización o aislamiento"];
+  return sheyma.includes(alerta) ? "SHEyMA" : "Operativa";
+}
+
+/* ============================================================
+   AUTENTICACIÓN — MSAL.js restringido al tenant de Ubictum
+   ============================================================ */
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.href
+  },
+  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+let ROLE = { isColaborador:false, isMC:false };
+
+async function signIn(){
+  document.getElementById('gateErr').textContent = '';
+  try{
+    const res = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
+    msalInstance.setActiveAccount(res.account);
+    onSignedIn(res.account);
+  }catch(err){
+    document.getElementById('gateErr').textContent = 'No se pudo iniciar sesión: ' + err.message;
+  }
+}
+
+function signOut(){
+  msalInstance.logoutPopup().then(()=>{
+    document.getElementById('appContent').style.display='none';
+    document.getElementById('userbox').style.display='none';
+    document.getElementById('authGate').style.display='flex';
+  });
+}
+
+async function onSignedIn(account){
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('appContent').style.display='block';
+  document.getElementById('userbox').style.display='flex';
+  document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
+  await resolveRole();
+  testConnectionSilent();
+  loadCatalogs();
+  loadIdList();
+}
+
+async function getToken(){
+  const account = msalInstance.getActiveAccount();
+  if(!account) throw new Error('No hay sesión activa. Inicia sesión de nuevo.');
+  try{
+    const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account });
+    return res.accessToken;
+  }catch(e){
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    return res.accessToken;
+  }
+}
+
+async function initAuth(){
+  const accounts = msalInstance.getAllAccounts();
+  try{
+    let tokenResp;
+    if(accounts.length > 0){
+      tokenResp = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
+    } else {
+      tokenResp = await msalInstance.ssoSilent({ scopes: GRAPH_SCOPES });
+    }
+    msalInstance.setActiveAccount(tokenResp.account);
+    onSignedIn(tokenResp.account);
+  } catch(e){
+    document.getElementById('authGate').style.display='flex';
+  }
+}
+initAuth();
+
+async function resolveRole(){
+  try{
+    const token = await getToken();
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/checkMemberGroups', {
+      method:'POST',
+      headers:{ 'Authorization':`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ groupIds: [CONFIG.groupColaboradores, CONFIG.groupAlertasStopMC] })
+    });
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    ROLE.isColaborador = data.value.includes(CONFIG.groupColaboradores);
+    ROLE.isMC = data.value.includes(CONFIG.groupAlertasStopMC);
+  }catch(err){
+    ROLE.isColaborador = false; ROLE.isMC = false;
+  }
+  const chip = document.getElementById('roleChip');
+  const roles = [];
+  if(ROLE.isColaborador) roles.push('Colaborador');
+  if(ROLE.isMC) roles.push('Equipo de mejora');
+  chip.textContent = roles.length ? roles.join(' · ') : 'Sin rol asignado';
+  applyRoleLocks();
+}
+
+function applyRoleLocks(){
+  document.getElementById('enviarBtn').disabled = !ROLE.isColaborador;
+  if(!ROLE.isColaborador){
+    showToast('Tu cuenta no pertenece a U-Colaboradores: no puedes reportar alertas.', 'error');
+  }
+}
+
+/* ============================================================
+   GRAPH HELPERS
+   ============================================================ */
+async function graphFetch(path, options={}){
+  const token = await getToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    ...options,
+    headers:{ 'Authorization':`Bearer ${token}`, 'Content-Type':'application/json', ...(options.headers||{}) }
+  });
+  if(!res.ok){
+    const errBody = await res.text();
+    throw new Error(`Graph ${res.status}: ${errBody}`);
+  }
+  return res.status===204 ? null : res.json();
+}
+
+async function uploadAttachment(file, tag){
+  const token = await getToken();
+  const safeName = `${tag||'evidencia'}_${Date.now()}_${file.name}`.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}/${encodeURIComponent(safeName)}:/content`;
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method:'PUT',
+    headers:{ 'Authorization':`Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+    body: file
+  });
+  if(!res.ok) throw new Error(`No se pudo subir "${file.name}": ${await res.text()}`);
+  const data = await res.json();
+  return data.webUrl;
+}
+
+async function createListItem(fieldsRaw){
+  const fields = {};
+  Object.entries(fieldsRaw).forEach(([k,v])=>{
+    if(v !== null && v !== undefined && FIELD_MAP[k]) fields[FIELD_MAP[k]] = v;
+  });
+  return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items`, { method:'POST', body: JSON.stringify({ fields }) });
+}
+
+async function updateListItem(itemId, fieldsRaw){
+  const fields = {};
+  Object.entries(fieldsRaw).forEach(([k,v])=>{
+    if(v !== null && v !== undefined && FIELD_MAP[k]) fields[FIELD_MAP[k]] = v;
+  });
+  return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items/${itemId}`, { method:'PATCH', body: JSON.stringify(fields) });
+}
+
+async function testConnectionSilent(){
+  const badge = document.getElementById('connBadge');
+  try{
+    await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/columns`);
+    badge.textContent = 'Conectado con BD';
+    badge.classList.remove('err');
+  }catch(err){
+    badge.textContent = 'Sin conexión a BD';
+    badge.classList.add('err');
+  }
+}
+
+/* ============================================================
+   CATÁLOGOS
+   ============================================================ */
+async function fetchCatalog(listId, fieldName){
+  const data = await graphFetch(`/sites/${CONFIG.siteId}/lists/${listId}/items?$expand=fields($select=${fieldName})&$top=500`);
+  return (data.value||[])
+    .map(it => it.fields && it.fields[fieldName])
+    .filter(v => v !== undefined && v !== null && v !== '')
+    .sort((a,b)=> a.localeCompare(b,'es'));
+}
+
+function fillSelect(selectEl, options, placeholder){
+  selectEl.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value=''; ph.disabled=true; ph.selected=true; ph.textContent = placeholder;
+  selectEl.appendChild(ph);
+  options.forEach(o=>{
+    const opt = document.createElement('option'); opt.value=o; opt.textContent=o; selectEl.appendChild(opt);
+  });
+}
+
+async function loadCatalogs(){
+  try{
+    const [cuentas, turnos, procesos, areas, alertas] = await Promise.all([
+      fetchCatalog(CONFIG.catCuentaId, 'Cuenta'),
+      fetchCatalog(CONFIG.catTurnoId, 'Turno'),
+      fetchCatalog(CONFIG.catProcesoId, 'Proceso'),
+      fetchCatalog(CONFIG.catAreaId, 'Area'),
+      fetchCatalog(CONFIG.catAlertaId, 'Alerta')
+    ]);
+    fillSelect(document.getElementById('cuenta'), cuentas, 'Selecciona una cuenta');
+    fillSelect(document.getElementById('turno'), turnos, 'Selecciona un turno');
+    fillSelect(document.getElementById('proceso'), procesos, 'Selecciona un proceso');
+    fillSelect(document.getElementById('area'), areas, 'Selecciona un área');
+    fillSelect(document.getElementById('alerta'), alertas, 'Selecciona una alerta');
+  }catch(err){
+    showToast('No se pudieron cargar los catálogos: ' + err.message, 'error');
+  }
+}
+
+/* ============================================================
+   FIRMA DIGITAL (canvas)
+   ============================================================ */
+const sigState = {}; // { canvasId: { drawing:false, hasDrawn:false, ctx } }
+
+function setupSignaturePad(canvasId){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const ratio = window.devicePixelRatio || 1;
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#000';
+  }
+  resize();
+  sigState[canvasId] = { drawing:false, hasDrawn:false, ctx };
+
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+  }
+  function start(e){ e.preventDefault(); sigState[canvasId].drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+  function move(e){
+    if(!sigState[canvasId].drawing) return;
+    e.preventDefault();
+    const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+    sigState[canvasId].hasDrawn = true;
+  }
+  function end(){ sigState[canvasId].drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false});
+  canvas.addEventListener('touchmove', move, {passive:false});
+  canvas.addEventListener('touchend', end);
+}
+
+function clearSignature(canvasId){
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(sigState[canvasId]) sigState[canvasId].hasDrawn = false;
+}
+
+function isSignatureEmpty(canvasId){
+  return !sigState[canvasId] || !sigState[canvasId].hasDrawn;
+}
+
+function getSignatureBase64(canvasId){
+  return document.getElementById(canvasId).toDataURL('image/png');
+}
+
+setupSignaturePad('sigReporta');
+
+/* ============================================================
+   TABS
+   ============================================================ */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+/* ============================================================
+   PANEL: NUEVA ALERTA — ENVIAR
+   ============================================================ */
+document.getElementById('evidencias').addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files).map(f=>f.name);
+  document.getElementById('fileList').innerHTML = files.map(f=>`<span>📎 ${f}</span>`).join('');
+});
+
+document.getElementById('nuevaForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  if(!ROLE.isColaborador){
+    showToast('No tienes permiso para reportar alertas.', 'error');
+    return;
+  }
+
+  let valid = true;
+  const markInvalid = (id)=>{ document.getElementById('f-'+id).classList.add('invalid'); valid=false; };
+  const clearInvalid = (id)=>{ document.getElementById('f-'+id).classList.remove('invalid'); };
+
+  ['alerta','cuenta','turno','proceso','area','pasillo','comentario','nombreReporta'].forEach(clearInvalid);
+  document.getElementById('f-firmaReporta').classList.remove('invalid');
+
+  const alerta = document.getElementById('alerta').value;
+  const cuenta = document.getElementById('cuenta').value;
+  const turno = document.getElementById('turno').value;
+  const proceso = document.getElementById('proceso').value;
+  const area = document.getElementById('area').value;
+  const pasillo = document.getElementById('pasillo').value.trim();
+  const comentario = document.getElementById('comentario').value.trim();
+  const nombreReporta = document.getElementById('nombreReporta').value.trim();
+
+  if(!alerta) markInvalid('alerta');
+  if(!cuenta) markInvalid('cuenta');
+  if(!turno) markInvalid('turno');
+  if(!proceso) markInvalid('proceso');
+  if(!area) markInvalid('area');
+  if(!pasillo) markInvalid('pasillo');
+  if(!comentario) markInvalid('comentario');
+  if(!nombreReporta) markInvalid('nombreReporta');
+  if(isSignatureEmpty('sigReporta')){ document.getElementById('f-firmaReporta').classList.add('invalid'); valid=false; }
+
+  if(!valid){ showToast('Revisa los campos marcados en rojo.', 'error'); return; }
+
+  const btn = document.getElementById('enviarBtn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  try{
+    let evidenciaUrls = [];
+    const files = Array.from(document.getElementById('evidencias').files);
+    if(files.length){
+      btn.textContent = 'Subiendo evidencias...';
+      for(const f of files) evidenciaUrls.push(await uploadAttachment(f, alerta));
+    }
+
+    btn.textContent = 'Guardando en SharePoint...';
+    const noEmpleado = document.getElementById('noEmpleadoResponsable').value;
+
+    const created = await createListItem({
+      Title: `${alerta} - ${area}`,
+      Alerta: alerta,
+      Cuenta: cuenta,
+      Turno: turno,
+      Proceso: proceso,
+      Area: area,
+      NoPasillo: pasillo,
+      Comentario: comentario,
+      Evidencias: evidenciaUrls.length ? evidenciaUrls.join('\n') : null,
+      TipoTarjeta: calcularTipoTarjeta(alerta),
+      TipoAlerta: calcularTipoAlerta(alerta),
+      NombreReporta: nombreReporta,
+      FirmaReporta: getSignatureBase64('sigReporta'),
+      NoEmpleadoResponsable: noEmpleado || null,
+      EstatusFirma: "Creado"
+    });
+
+    showToast(`✓ Alerta creada con ID ${created.id}.`, 'success');
+    resetNuevaForm();
+    loadIdList();
+  }catch(err){
+    showToast('Error al guardar: ' + err.message, 'error');
+  }finally{
+    btn.disabled = !ROLE.isColaborador; btn.textContent = 'Enviar';
+  }
+});
+
+function resetNuevaForm(){
+  document.getElementById('nuevaForm').reset();
+  document.querySelectorAll('#panel-nueva .field').forEach(f=>f.classList.remove('invalid'));
+  document.getElementById('fileList').innerHTML = '';
+  clearSignature('sigReporta');
+}
+
+/* ============================================================
+   PANEL: CONSULTA / ATENCIÓN
+   ============================================================ */
+let currentRecord = null;
+
+async function loadIdList(){
+  try{
+    const data = await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items?$expand=fields($select=Title,Alerta,Area)&$top=500&$orderby=fields/ID desc`);
+    const dl = document.getElementById('idList');
+    dl.innerHTML = '';
+    (data.value||[]).forEach(it=>{
+      const label = `${it.id} - ${it.fields?.Alerta||''} (${it.fields?.Area||''})`;
+      const opt = document.createElement('option');
+      opt.value = it.id; opt.label = label;
+      dl.appendChild(opt);
+    });
+  }catch(err){ /* silencioso: no bloquea la búsqueda manual por ID */ }
+}
+
+async function loadRecord(){
+  const raw = document.getElementById('searchInput').value.trim();
+  const id = raw.split(' ')[0]; // por si el usuario deja el texto completo del datalist
+  if(!id){ showToast('Escribe o selecciona un ID.', 'error'); return; }
+
+  try{
+    const item = await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items/${id}?$expand=fields`);
+    currentRecord = item;
+    renderRecord(item);
+  }catch(err){
+    document.getElementById('recordArea').innerHTML = `<div class="card"><p class="empty-hint">No se encontró la alerta con ID ${id}.</p></div>`;
+    currentRecord = null;
+  }
+}
+
+function estatusPillHtml(estatus){
+  const cls = estatus==='Completado' ? 'completado' : (estatus==='Proceso' ? 'proceso' : 'creado');
+  return `<span class="estatus-pill ${cls}">${estatus||'Creado'}</span>`;
+}
+
+function renderRecord(item){
+  const f = item.fields;
+  const estatusFirma = f.EstatusFirma || 'Creado';
+  const isCompleto = estatusFirma === 'Completado';
+
+  const evidenciasHtml = (f.Evidencias||'').split('\n').filter(Boolean)
+    .map(u=>`<div><a href="${u}" target="_blank" rel="noopener">📎 Ver evidencia</a></div>`).join('') || '<span class="hint">Sin evidencias</span>';
+
+  let html = `
+    <div class="card">
+      <div class="record-header">
+        <div><strong>ID ${item.id}</strong> <span class="rid">· ${f.Alerta||''}</span></div>
+        ${estatusPillHtml(estatusFirma)}
+      </div>
+      <div class="readonly-row"><span class="k">Cuenta</span><span class="v">${f.Cuenta||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Turno</span><span class="v">${f.Turno||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Proceso</span><span class="v">${f.Proceso||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Área</span><span class="v">${f.Area||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Ubicación</span><span class="v">${f.NoPasillo_x002d_Puerta_x002d_Ram||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Tipo tarjeta</span><span class="v">${f.TipoTarjeta||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Tipo alerta</span><span class="v">${f.TipoAlerta||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Comentario</span><span class="v">${f.Comentario||'—'}</span></div>
+      <div class="readonly-row"><span class="k">Evidencias</span><span class="v">${evidenciasHtml}</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Firma de quien reporta</h2>
+      ${f.FirmaReporta ? `
+        <div class="sig-preview">
+          <img src="${f.FirmaReporta}" alt="Firma de quien reporta">
+          <div class="sig-caption">${f.NombreReporta||''}</div>
+        </div>` : '<p class="hint">Sin firma registrada.</p>'}
+      <div class="readonly-row" style="margin-top:10px;"><span class="k">No. Empleado responsable</span><span class="v">${f.NoEmpleadoResponsable||'—'}</span></div>
+    </div>
+
+    <div class="card ${ROLE.isMC ? '' : 'locked'}" id="atencionCard">
+      <h2>Atención (equipo de mejora)</h2>
+      ${!ROLE.isMC ? '<div class="lock-note">Solo el equipo de mejora (U-AlertasStopMC) puede capturar estos datos.</div>' : ''}
+      <div class="field">
+        <label>Jefe responsable</label>
+        <input type="text" id="c-jefeResponsable" value="${f.JefeResponsable||''}" ${ROLE.isMC && !isCompleto ? '' : 'disabled'}>
+      </div>
+      <div class="field">
+        <label>Acción correctiva</label>
+        <textarea id="c-accionCorrectiva" ${ROLE.isMC && !isCompleto ? '' : 'disabled'}>${f.AccionCorrectiva||''}</textarea>
+      </div>
+      <div class="field">
+        <label>Fecha de atención</label>
+        <input type="datetime-local" id="c-fechaAtencion" value="${f.FechaAtencion ? f.FechaAtencion.substring(0,16) : ''}" ${ROLE.isMC && !isCompleto ? '' : 'disabled'}>
+      </div>
+      ${ROLE.isMC && !isCompleto ? `<div class="actions"><button type="button" class="btn btn-primary" onclick="guardarAtencion(${item.id})">Guardar</button></div>` : ''}
+    </div>
+
+    <div class="card ${ROLE.isColaborador ? '' : 'locked'}">
+      <h2>Cierre</h2>
+      ${isCompleto ? `
+        <div class="sig-preview">
+          <img src="${f.FirmaResponsable}" alt="Firma responsable">
+          <div class="sig-caption">${f.NombreResponsable||''}</div>
+        </div>
+      ` : `
+        ${!ROLE.isColaborador ? '<div class="lock-note">No tienes permiso para cerrar esta alerta.</div>' : ''}
+        <div class="field">
+          <label>Nombre de quien atiende y firma</label>
+          <input type="text" id="c-nombreResponsable" placeholder="Nombre completo" ${ROLE.isColaborador ? '' : 'disabled'}>
+        </div>
+        <div class="field">
+          <label>Firma</label>
+          <div class="sig-wrap">
+            <canvas id="sigResponsable"></canvas>
+            <div class="sig-actions">
+              <span>Firma con el mouse o el dedo</span>
+              <button type="button" onclick="clearSignature('sigResponsable')">Limpiar firma</button>
+            </div>
+          </div>
+        </div>
+        ${ROLE.isColaborador ? `<div class="actions"><button type="button" class="btn btn-primary" onclick="cerrarAlerta(${item.id})">Cerrar</button></div>` : ''}
+      `}
+    </div>
+  `;
+
+  document.getElementById('recordArea').innerHTML = html;
+  if(!isCompleto && ROLE.isColaborador) setupSignaturePad('sigResponsable');
+}
+
+async function guardarAtencion(itemId){
+  const jefe = document.getElementById('c-jefeResponsable').value.trim();
+  const accion = document.getElementById('c-accionCorrectiva').value.trim();
+  const fecha = document.getElementById('c-fechaAtencion').value;
+
+  try{
+    await updateListItem(itemId, {
+      JefeResponsable: jefe || null,
+      AccionCorrectiva: accion || null,
+      FechaAtencion: fecha ? new Date(fecha).toISOString() : null,
+      EstatusFirma: "Proceso"
+    });
+    showToast('✓ Datos de atención guardados.', 'success');
+    loadRecord();
+  }catch(err){
+    showToast('Error al guardar: ' + err.message, 'error');
+  }
+}
+
+async function cerrarAlerta(itemId){
+  const nombre = document.getElementById('c-nombreResponsable').value.trim();
+  if(!nombre){ showToast('Indica el nombre de quien firma.', 'error'); return; }
+  if(isSignatureEmpty('sigResponsable')){ showToast('Se requiere la firma de cierre.', 'error'); return; }
+
+  try{
+    await updateListItem(itemId, {
+      NombreResponsable: nombre,
+      FirmaResponsable: getSignatureBase64('sigResponsable'),
+      EstatusFirma: "Completado"
+    });
+    showToast('✓ Alerta cerrada con ambas firmas.', 'success');
+    loadRecord();
+    loadIdList();
+  }catch(err){
+    showToast('Error al cerrar: ' + err.message, 'error');
+  }
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type||'');
+  setTimeout(()=> t.className='toast', 3200);
+}
+</script>
+</body>
+</html>
