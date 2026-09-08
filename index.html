@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alertas Stop · Ubictum · v2</title>
+<title>Alertas Stop · Ubictum · v3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 <style>
@@ -402,7 +402,7 @@ const CONFIG = {
   groupAlertasStopMC: "e4999dfc-d13e-49b8-85ad-312d9dc4ba95"  // U-AlertasStopMC
 };
 
-const APP_VERSION = "v2";
+const APP_VERSION = "v3";
 
 // Nombres internos reales de columna en la lista AlertaStop (confirmados vía Graph Explorer).
 // OJO: NoPasillo-Puerta-Rampa-Zona quedó codificado internamente por los guiones.
@@ -595,7 +595,9 @@ async function updateListItem(itemId, fieldsRaw){
   Object.entries(fieldsRaw).forEach(([k,v])=>{
     if(v !== null && v !== undefined && FIELD_MAP[k]) fields[FIELD_MAP[k]] = v;
   });
-  return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items/${itemId}`, { method:'PATCH', body: JSON.stringify(fields) });
+  // OJO: para actualizar columnas hay que apuntar a /items/{id}/fields (no a /items/{id} directo);
+  // el endpoint del item por sí solo acepta el PATCH sin error pero no escribe nada.
+  return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items/${itemId}/fields`, { method:'PATCH', body: JSON.stringify(fields) });
 }
 
 async function testConnectionSilent(){
