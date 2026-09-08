@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alertas Stop · Ubictum · v1</title>
+<title>Alertas Stop · Ubictum · v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 <style>
   :root{
@@ -162,15 +163,25 @@
   .panel.active{display:block;}
 
   /* ---------- Firma ---------- */
-  .sig-wrap{border:1.5px solid var(--ubi-border);border-radius:8px;background:#fafcfc;overflow:hidden;}
-  .sig-wrap canvas{display:block;width:100%;height:180px;touch-action:none;cursor:crosshair;background:#fff;}
-  .sig-actions{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#eef4f4;}
-  .sig-actions span{font-size:11px;color:var(--ubi-gray);}
-  .sig-actions button{
-    background:transparent;border:1px solid var(--ubi-border);border-radius:6px;
+  .firmas{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:560px){.firmas{grid-template-columns:1fr;}}
+  .firma-box{text-align:center;}
+  .firma-box p{font-size:13px;font-weight:600;margin:0 0 8px;color:var(--ubi-ink);}
+  .firma-box canvas{
+    display:block;width:100%;height:140px;touch-action:none;cursor:crosshair;
+    background:#fff;border:1.5px solid var(--ubi-border);border-radius:8px;
+  }
+  .firma-box button{
+    margin-top:6px;background:transparent;border:1px solid var(--ubi-border);border-radius:6px;
     padding:4px 10px;font-size:11.5px;cursor:pointer;color:var(--ubi-blue-dark);
   }
-  .sig-actions button:hover{border-color:var(--ubi-blue);}
+  .firma-box button:hover{border-color:var(--ubi-blue);}
+  .firma-box.disabled p{color:#a9adad;}
+  .firma-placeholder{
+    height:140px;border:1.5px dashed var(--ubi-border);border-radius:8px;background:#f3f5f5;
+    display:flex;align-items:center;justify-content:center;color:#a9adad;font-size:12px;
+    text-align:center;padding:10px;
+  }
   .sig-preview{border:1.5px solid var(--ubi-border);border-radius:8px;background:#fff;padding:8px;text-align:center;}
   .sig-preview img{max-width:100%;max-height:150px;}
   .sig-preview .sig-caption{font-size:11.5px;color:var(--ubi-gray);margin-top:6px;}
@@ -307,25 +318,34 @@
       </div>
 
       <div class="card">
-        <h2>Quién reporta</h2>
-        <p class="sub">Firma de quien detecta y reporta la alerta dentro del almacén.</p>
+        <h2>Firmas</h2>
+        <p class="sub">Nombre y firma de quien registra la alerta. La firma del responsable se habilita más adelante, al cerrar la alerta.</p>
 
-        <div class="field" id="f-nombreReporta">
-          <label>Nombre de quien reporta<span class="req">*</span></label>
-          <input type="text" id="nombreReporta" placeholder="Nombre completo" required>
-          <div class="err-msg">Indica el nombre de quien reporta.</div>
+        <div class="row2">
+          <div class="field" id="f-nombreReporta">
+            <label>Nombre de quien registra<span class="req">*</span></label>
+            <input type="text" id="nombreReporta" placeholder="Nombre completo" required>
+            <div class="err-msg">Indica el nombre de quien registra.</div>
+          </div>
+          <div class="field">
+            <label>Nombre responsable<span class="opt">(se captura al cerrar)</span></label>
+            <input type="text" disabled placeholder="Pendiente hasta el cierre">
+          </div>
         </div>
 
         <div class="field" id="f-firmaReporta">
-          <label>Firma<span class="req">*</span></label>
-          <div class="sig-wrap">
-            <canvas id="sigReporta"></canvas>
-            <div class="sig-actions">
-              <span>Firma con el mouse o el dedo</span>
+          <div class="firmas">
+            <div class="firma-box">
+              <p>Quien registra<span class="req">*</span></p>
+              <canvas id="sigReporta"></canvas>
               <button type="button" onclick="clearSignature('sigReporta')">Limpiar firma</button>
             </div>
+            <div class="firma-box disabled">
+              <p>Responsable<span class="opt">(se habilita al cerrar)</span></p>
+              <div class="firma-placeholder">🔒 Disponible al cerrar la alerta</div>
+            </div>
           </div>
-          <div class="err-msg">Se requiere la firma de quien reporta.</div>
+          <div class="err-msg">Se requiere la firma de quien registra.</div>
         </div>
 
         <div class="field">
@@ -382,7 +402,7 @@ const CONFIG = {
   groupAlertasStopMC: "e4999dfc-d13e-49b8-85ad-312d9dc4ba95"  // U-AlertasStopMC
 };
 
-const APP_VERSION = "v1";
+const APP_VERSION = "v2";
 
 // Nombres internos reales de columna en la lista AlertaStop (confirmados vía Graph Explorer).
 // OJO: NoPasillo-Puerta-Rampa-Zona quedó codificado internamente por los guiones.
@@ -466,6 +486,7 @@ async function onSignedIn(account){
   document.getElementById('appContent').style.display='block';
   document.getElementById('userbox').style.display='flex';
   document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
+  initPad('sigReporta'); // el canvas ya es visible aquí (appContent recién mostrado)
   await resolveRole();
   testConnectionSilent();
   loadCatalogs();
@@ -630,65 +651,44 @@ async function loadCatalogs(){
 }
 
 /* ============================================================
-   FIRMA DIGITAL (canvas)
+   FIRMA DIGITAL — librería SignaturePad (misma que usa Forms)
+   IMPORTANTE: el canvas debe estar VISIBLE (no dentro de un
+   contenedor con display:none) al inicializarse, o su tamaño
+   interno queda en 0x0 y no acepta trazos. Por eso 'sigReporta'
+   se inicializa dentro de onSignedIn() (ya con appContent visible)
+   y 'sigResponsable' se inicializa al insertarse en renderRecord().
    ============================================================ */
-const sigState = {}; // { canvasId: { drawing:false, hasDrawn:false, ctx } }
+const pads = {};
 
-function setupSignaturePad(canvasId){
+function initPad(canvasId){
   const canvas = document.getElementById(canvasId);
-  if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const ratio = window.devicePixelRatio || 1;
-  function resize(){
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2.2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
+  if(!canvas) return null;
+  function sizeCanvas(){
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvas.width = canvas.offsetWidth * ratio;
+    canvas.height = canvas.offsetHeight * ratio;
+    canvas.getContext('2d').scale(ratio, ratio);
   }
-  resize();
-  sigState[canvasId] = { drawing:false, hasDrawn:false, ctx };
-
-  function pos(e){
-    const rect = canvas.getBoundingClientRect();
-    const p = e.touches ? e.touches[0] : e;
-    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
-  }
-  function start(e){ e.preventDefault(); sigState[canvasId].drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
-  function move(e){
-    if(!sigState[canvasId].drawing) return;
-    e.preventDefault();
-    const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
-    sigState[canvasId].hasDrawn = true;
-  }
-  function end(){ sigState[canvasId].drawing = false; }
-
-  canvas.addEventListener('mousedown', start);
-  canvas.addEventListener('mousemove', move);
-  window.addEventListener('mouseup', end);
-  canvas.addEventListener('touchstart', start, {passive:false});
-  canvas.addEventListener('touchmove', move, {passive:false});
-  canvas.addEventListener('touchend', end);
+  sizeCanvas();
+  const pad = new SignaturePad(canvas, { backgroundColor:'rgba(255,255,255,0)', penColor:'#161514' });
+  window.addEventListener('resize', ()=>{
+    const datosPrevios = pad.toData();
+    sizeCanvas();
+    pad.fromData(datosPrevios);
+  });
+  pads[canvasId] = pad;
+  return pad;
 }
 
 function clearSignature(canvasId){
-  const canvas = document.getElementById(canvasId);
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(sigState[canvasId]) sigState[canvasId].hasDrawn = false;
+  if(pads[canvasId]) pads[canvasId].clear();
 }
-
 function isSignatureEmpty(canvasId){
-  return !sigState[canvasId] || !sigState[canvasId].hasDrawn;
+  return !pads[canvasId] || pads[canvasId].isEmpty();
 }
-
 function getSignatureBase64(canvasId){
-  return document.getElementById(canvasId).toDataURL('image/png');
+  return pads[canvasId].toDataURL('image/png');
 }
-
-setupSignaturePad('sigReporta');
 
 /* ============================================================
    TABS
@@ -899,12 +899,9 @@ function renderRecord(item){
         </div>
         <div class="field">
           <label>Firma</label>
-          <div class="sig-wrap">
+          <div class="firma-box">
             <canvas id="sigResponsable"></canvas>
-            <div class="sig-actions">
-              <span>Firma con el mouse o el dedo</span>
-              <button type="button" onclick="clearSignature('sigResponsable')">Limpiar firma</button>
-            </div>
+            <button type="button" onclick="clearSignature('sigResponsable')">Limpiar firma</button>
           </div>
         </div>
         ${ROLE.isColaborador ? `<div class="actions"><button type="button" class="btn btn-primary" onclick="cerrarAlerta(${item.id})">Cerrar</button></div>` : ''}
@@ -913,7 +910,7 @@ function renderRecord(item){
   `;
 
   document.getElementById('recordArea').innerHTML = html;
-  if(!isCompleto && ROLE.isColaborador) setupSignaturePad('sigResponsable');
+  if(!isCompleto && ROLE.isColaborador) initPad('sigResponsable'); // ya insertado en el DOM y visible (tab activo)
 }
 
 async function guardarAtencion(itemId){
